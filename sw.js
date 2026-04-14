@@ -1,4 +1,4 @@
-const CACHE_NAME = 'baydin-v1';
+const CACHE_NAME = 'baydin-v2';
 const assetsToCache = [
   '/',
   '/index.html',
