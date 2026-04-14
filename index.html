@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ဗေဒင်မေးကြမယ်</title>
+    <link rel="manifest" href="manifest.json">
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icon-192x192.png">
+
+<script>
+  // Service Worker ကို စတင် (Register) လုပ်ခြင်း
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js')
+        .then(reg => console.log('Service Worker: Registered'))
+        .catch(err => console.log('Service Worker: Error: ' + err));
+    });
+  }
+</script>
+    <style>
+        :root {
+            --gold: #ffd700;
+            --dark-bg: #0f001a;
+            --glass: rgba(255, 255, 255, 0.1);
+            --text-gray: #bbb;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', 'Pyidaungsu', sans-serif;
+            background: radial-gradient(circle at center, #2a004f, #05000a);
+            color: white;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* --- Home Screen Layout --- */
+        .container {
+            max-width: 500px;
+            margin: auto;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header {
+            margin-bottom: 30px;
+            animation: fadeInDown 1s ease;
+        }
+
+        .header h1 {
+            color: var(--gold);
+            text-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+            margin-bottom: 5px;
+            font-size: 2.2rem;
+        }
+
+        /* Today's Stats Row */
+        .status-bar {
+            display: flex;
+            justify-content: space-around;
+            background: var(--glass);
+            padding: 15px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 215, 0, 0.2);
+            margin-bottom: 30px;
+            backdrop-filter: blur(5px);
+        }
+
+        .stat-box span { font-size: 0.75rem; color: var(--text-gray); display: block; }
+        .stat-box strong { font-size: 0.95rem; }
+        .color-dot {
+            width: 20px; height: 20px; border-radius: 50%;
+            margin: 5px auto; border: 2px solid white;
+            box-shadow: 0 0 8px currentColor;
+        }
+
+        /* Hero Glowing Card */
+        .hero-section {
+            position: relative;
+            width: 200px; height: 300px;
+            margin: 0 auto 40px;
+            cursor: pointer;
+        }
+
+        .glowing-card {
+            width: 100%; height: 100%;
+            background: linear-gradient(135deg, #4b0082, #000);
+            border: 2px solid var(--gold);
+            border-radius: 15px;
+            display: flex; align-items: center; justify-content: center;
+            position: relative; overflow: hidden;
+            animation: float 3s ease-in-out infinite;
+            box-shadow: 0 0 25px rgba(255, 215, 0, 0.2);
+        }
+
+        .glowing-card::after {
+            content: ''; position: absolute;
+            width: 150%; height: 150%;
+            background: linear-gradient(45deg, transparent, rgba(255, 215, 0, 0.2), transparent);
+            transform: rotate(45deg);
+            animation: shimmer 3s infinite;
+        }
+
+        /* Quick Actions Grid */
+        .actions-grid {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 15px; margin-top: 20px;
+        }
+
+        .action-card {
+            background: var(--glass);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            padding: 20px; border-radius: 15px;
+            cursor: pointer; transition: 0.3s;
+        }
+
+        .action-card:active { transform: scale(0.95); }
+        .action-card i { font-size: 1.5rem; display: block; margin-bottom: 8px; }
+
+        /* --- Drawing & Flip Overlay --- */
+        #draw-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.96);
+            display: none; z-index: 1000;
+            flex-direction: column; align-items: center; justify-content: center;
+        }
+
+        .flip-box {
+            perspective: 1000px;
+            width: 280px; height: 450px;
+            margin-bottom: 20px;
+        }
+
+        .flipper {
+            position: relative; width: 100%; height: 100%;
+            transition: transform 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d;
+            cursor: pointer;
+        }
+
+        .flipper.flipped { transform: rotateY(180deg); }
+
+        .front, .back {
+            position: absolute; width: 100%; height: 100%;
+            backface-visibility: hidden; border-radius: 20px;
+            border: 3px solid var(--gold);
+        }
+
+        .front {
+            background: #1a0033; display: flex; align-items: center; justify-content: center;
+        }
+
+        .back {
+            background: white; transform: rotateY(180deg);
+            color: black; overflow: hidden; display: flex; flex-direction: column;
+        }
+
+        .back img { width: 100%; height: 75%; object-fit: cover; }
+        .back-info { flex: 1; padding: 10px; text-align: center; border-top: 2px solid var(--gold); background: #fff; }
+
+        /* Message Box */
+        #message-box {
+            display: none; width: 90%; max-width: 400px;
+            background: white; color: #222; padding: 20px;
+            border-radius: 15px; animation: fadeInUp 0.8s;
+            margin-top: 20px; text-align: left;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .close-btn {
+            background: var(--gold); color: black; border: none;
+            padding: 12px 25px; border-radius: 10px; font-weight: bold;
+            margin-top: 15px; width: 100%; cursor: pointer;
+        }
+
+        /* Animations */
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+        @keyframes shimmer { 0% { left: -150%; } 100% { left: 150%; } }
+        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    </style>
+</head>
+<body>
+
+<div class="container" id="home-screen">
+    <div class="header">
+        <h1>🔮 ဗေဒင်မေးကြမယ်</h1>
+        <p>ကံကြမ္မာ၏ လမ်းညွှန်မှုများ</p>
+    </div>
+
+    <div class="status-bar">
+        <div class="stat-box">
+            <span>ယနေ့အတွက် စွမ်းအင်</span>
+            <strong id="mood-text">Peaceful 🧘</strong>
+        </div>
+        <div class="stat-box">
+            <span>ကံကောင်းစေသော အရောင်</span>
+            <div id="lucky-color-dot" class="color-dot" style="background: #ffd700; color: #ffd700;"></div>
+        </div>
+    </div>
+
+    <div class="hero-section" onclick="startReading('နေ့စဉ်ကံဇာတာ')">
+        <div class="glowing-card">
+            <span style="font-size: 3.5rem;">🎴</span>
+        </div>
+        <p style="color: var(--gold); margin-top: 15px; font-weight: bold; letter-spacing: 1px;">ကဒ်ကို ရွေးချယ်ပါ (သို့) နှိပ်ပါ</p>
+    </div>
+
+    <div class="actions-grid">
+        <div class="action-card" onclick="startReading('အချစ်ရေး')"><i>❤️</i> အချစ်ရေး</div>
+        <div class="action-card" onclick="startReading('အလုပ်အကိုင်')"><i>💰</i> အလုပ်အကိုင်</div>
+        <div class="action-card" onclick="startReading('ငွေကြေး')"><i>💵</i> ငွေကြေး</div>
+        <div class="action-card" onclick="startReading('ကျန်းမာရေး')"><i>🍀</i> ကျန်းမာရေး</div>
+    </div>
+</div>
+
+<div id="draw-overlay">
+    <h3 id="reading-title" style="color: gold; margin-bottom: 20px;">ဟောစာတမ်းကို ဖတ်ရှုနေပါသည်...</h3>
+    
+    <div class="flip-box">
+        <div id="card-flipper" class="flipper" onclick="handleFlip()">
+            <div class="front">
+                <div style="text-align: center;">
+                    <span style="font-size: 4rem;">✨</span>
+                    <p style="color: gold; margin-top: 10px;">နှိပ်၍ ကတ်ကိုလှန်ပါ</p>
+                </div>
+            </div>
+            <div class="back">
+                <img id="card-img" src="" alt="Tarot Card">
+                <div class="back-info">
+                    <h3 id="card-name" style="margin: 0; color: #4b0082;">The Sun</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="message-box">
+        <div id="content-area"></div>
+        <button class="close-btn" onclick="closeOverlay()">လက်ခံရရှိပါပြီ</button>
+    </div>
+</div>
+
+<script>
+    // --- Tarot Database with Warm Personality ---
+    const tarotData = {
+        "The Sun": {
+            img: "https://upload.wikimedia.org/wikipedia/commons/1/17/RWS_Tarot_19_Sun.jpg",
+            message: "ဒီနေ့မှာ 'The Sun' ကတ်ကြီး ထွက်လာတာ သိပ်ကံကောင်းတာပဲနော်။ သင့်ဘဝရဲ့ အမှောင်ထုတွေ ကုန်ဆုံးပြီး အောင်မြင်မှု အလင်းရောင်တွေ ရောက်လာတော့မှာပါ။ ကိုယ့်ကိုယ်ကိုယ် ယုံကြည်မှုအပြည့်နဲ့ ရှေ့ဆက်လိုက်ပါ။",
+            tip: "ဒီနေ့မှာ အဝါရောင် (Yellow) ဆောင်ထားရင် သင့်ရဲ့ စွမ်းအင်တွေ ပိုတက်ကြွနေမှာပါ။ ☀️"
+        },
+        "The Moon": {
+            img: "https://upload.wikimedia.org/wikipedia/commons/7/7f/RWS_Tarot_18_Moon.jpg",
+            message: "ဒီကတ်လေးက သင့်စိတ်ထဲမှာ မရေရာမှုလေးတွေ ရှိနေတာကို ပြနေပါတယ်။ ဒါပေမယ့် မစိုးရိမ်ပါနဲ့၊ ဒါဟာ အရာရာကို အရင်ကထက် ပိုသတိထားကြည့်ဖို့ သတိပေးတာပါ။ စိတ်အေးအေးထားပြီး ဆုံးဖြတ်ပါ။",
+            tip: "ဒီနေ့မှာ အပြာရောင် (Blue) လေးဆောင်ထားရင် စိတ်တည်ငြိမ်မှု ပိုရစေမှာပါ။ 🌙"
+        },
+        "The Lovers": {
+            img: "https://upload.wikimedia.org/wikipedia/commons/3/3a/RWS_Tarot_06_Lovers.jpg",
+            message: "ဒီနေ့ဟာ သင့်နှလုံးသားထဲမှာ အရေးကြီးတဲ့ ရွေးချယ်မှုတစ်ခု လုပ်ရတော့မယ့် အချိန်ပါ။ စိတ်ခံစားချက်နောက်ပဲ လိုက်မလား၊ သဘောတရားအတိုင်း ဆုံးဖြတ်မလားဆိုတာ သေချာစဉ်းစားဖို့ လိုပါလိမ့်မယ်။",
+            tip: "အချစ်ရေးအတွက် ကံကောင်းစေမယ့် အရောင်က ပန်းရောင် (Pink) လေးပါ။ 💖"
+        },
+        "The Tower": {
+            img: "https://upload.wikimedia.org/wikipedia/commons/5/53/RWS_Tarot_16_Tower.jpg",
+            message: "ဒီကတ်ထွက်လာလို့ လန့်မသွားပါနဲ့ဦးနော်။ တစ်ခါတလေမှာ ပိုကောင်းတဲ့ အသစ်တွေကို တည်ဆောက်ဖို့ အဟောင်းတွေကို ဖျက်ချရတတ်ပါတယ်။ ဒါဟာ ပိုကောင်းတဲ့လမ်းသစ်တစ်ခု ပေါ်လာဖို့ပဲ ဖြစ်ပါတယ်။ အားတင်းထားပါ။",
+            tip: "ဒီနေ့မှာ အဖြူရောင် (White) လေးဝတ်ထားရင် စိတ်အေးချမ်းမှု ရစေမှာပါ။ 🕊️"
+        },
+        "The World": {
+            img: "https://upload.wikimedia.org/wikipedia/commons/f/ff/RWS_Tarot_21_World.jpg",
+            message: "ဂုဏ်ယူပါတယ်! သင်ကြိုးစားထားသမျှတွေ အရာထင်ပြီး ပြီးပြည့်စုံတဲ့ အောင်မြင်မှုတစ်ခုကို ရရှိတော့မှာပါ။ သင့်ရဲ့ ခရီးစဉ်တစ်ခု ပြီးဆုံးပြီး လမ်းသစ်တွေ ပွင့်သွားပါပြီ။",
+            tip: "ဒီနေ့မှာ အစိမ်းရောင် (Green) လေးက သင့်ကို ကြွယ်ဝမှုတွေ ပေးပါလိမ့်မယ်။ 🌍"
+        }
+    };
+
+    const moods = ['High ✨', 'Peaceful 🧘', 'Powerful 🔥', 'Mystic 🌙', 'Blessed 🙏'];
+    const colorList = ['#ffd700', '#ff4d4d', '#4dff88', '#4d94ff', '#e066ff'];
+
+    // --- Audio System ---
+    function playSound(freq, duration) {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + duration);
+    }
+
+    // --- Logic Functions ---
+    window.onload = () => {
+        document.getElementById('mood-text').innerText = moods[Math.floor(Math.random()*moods.length)];
+        let randomColor = colorList[Math.floor(Math.random()*colorList.length)];
+        document.getElementById('lucky-color-dot').style.background = randomColor;
+        document.getElementById('lucky-color-dot').style.color = randomColor;
+    };
+
+    function startReading(type) {
+        document.getElementById('reading-title').innerText = type + " ဟောစာတမ်း...";
+        document.getElementById('draw-overlay').style.display = 'flex';
+        document.getElementById('card-flipper').classList.remove('flipped');
+        document.getElementById('message-box').style.display = 'none';
+        
+        playSound(880, 1.5); 
+    }
+
+    function handleFlip() {
+        const flipper = document.getElementById('card-flipper');
+        if (flipper.classList.contains('flipped')) return;
+
+        playSound(523, 2); 
+
+        const keys = Object.keys(tarotData);
+        const randomKey = keys[Math.floor(Math.random() * keys.length)];
+        const data = tarotData[randomKey];
+
+        document.getElementById('card-img').src = data.img;
+        document.getElementById('card-name').innerText = randomKey;
+        
+        // Output Message
+        document.getElementById('content-area').innerHTML = `
+            <p style="font-weight:bold; color:#4b0082; margin-bottom:8px;">🔮 ကံကြမ္မာ၏ လမ်းညွှန်ချက်:</p>
+            <p style="line-height:1.6; color: #333;">${data.message}</p>
+            <hr style="border:0; border-top:1px dashed #ccc; margin:15px 0;">
+            <p style="color:#0056b3; font-size:0.9rem;"><strong>💡 အကြံပြုချက် -</strong> ${data.tip}</p>
+        `;
+
+        flipper.classList.add('flipped');
+
+        setTimeout(() => {
+            document.getElementById('message-box').style.display = 'block';
+            document.getElementById('message-box').scrollIntoView({ behavior: 'smooth' });
+        }, 1200);
+    }
+
+    function closeOverlay() {
+        document.getElementById('draw-overlay').style.display = 'none';
+    }
+</script>
+
+</body>
+</html>
